@@ -1,0 +1,655 @@
+---
+title: "Mobile Data Analysis"
+author: "Alok Dhar Dubey"
+date: "2024-08-27"
+output: html_document
+urlcolor: blue
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo = FALSE}
+# To stop all the warnings
+options(warn = -1)
+```
+
+```{r, message=FALSE, echo=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(knitr)
+```
+
+In this project, we will analyze the mobile data from kaggle.
+
+The data is still needed to be cleaned for our analysis. We will quickly go through the data cleaning process and show the final working table.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+library(knitr)
+data <- read.csv("Mobiles_Dataset.csv")
+data <- data[, c(-10, -11, -12)] # Removing columns not required as of now (we only deal with numbers for now)
+
+# Function to remove non-numeric characters from a string
+number_converter <- function(x) {
+  if (x == "NIL") {
+    return(NA)
+  }
+  c <- gsub("[^0-9]", "", x)
+  
+  return(as.numeric(c))
+}
+
+data$Actual.price <- lapply(data$Actual.price, number_converter)
+data$Discount.price <- lapply(data$Discount.price, number_converter)
+data$Rating <- lapply(data$Rating, number_converter)
+data$Reviews <- lapply(data$Reviews, number_converter)
+
+data$Actual.price <- as.numeric(data$Actual.price)
+data$Discount.price <- as.numeric(data$Discount.price)
+data$Stars <- as.numeric(data$Stars)
+data$Rating <- as.numeric(data$Rating)
+data$Reviews <- as.numeric(data$Reviews)
+data$RAM..GB. <- as.numeric(data$RAM..GB.)
+data$Storage..GB. <- as.numeric(data$Storage..GB.)
+data$Display.Size..inch. <- as.numeric(data$Display.Size..inch.)
+
+kable(head(data))
+```
+
+
+# Visual Analysis
+
+Lets have a deeper look at the data, with the help of graphs.
+
+```{r}
+ggplot(data, aes(x = Actual.price))+
+  geom_histogram(bins = 50,  fill = "blue", color = "red", alpha = 0.7)+
+  labs(x = "Actual Price",
+       title = "Histogram of actual prices")+
+  theme_minimal()
+```
+```{r}
+ggplot(data, aes(x = Discount.price))+
+  geom_histogram(bins=50, fill = 'green', color = 'yellow', alpha=0.5)+
+  labs(x = "Discount price",
+       title = "Histogram of Discount prices")+
+  theme_minimal()
+```
+
+Both these graphs looks similar. We can have a closer look at them side by side.
+
+```{r}
+ggplot()+
+  geom_histogram(data = data,
+                 aes(x = Actual.price, fill = "Actual Price"),
+                 bins = 50,
+                 color = "red",
+                 alpha = 0.7)+
+  geom_histogram(data = data,
+                 aes(x = Discount.price, fill = "Discount Price"),
+                 bins = 50,
+                 color = 'yellow',
+                 alpha = 0.5)+
+  scale_fill_manual(name = "Price Type",
+                    values = c("Actual Price" = 'blue', "Discount Price" = "green"))+
+  labs(x = "Price",
+       y = "Count",
+       title = "Histograms of Actual and Discount prices")+
+  theme_dark()
+```
+
+This shows that both the prices are very closely related. This was also expected, since there is not much deviation between actual and discount prices, and the amount of discount is roughly proportional to the actual price of mobile.
+
+```{r}
+ggplot(data = data, aes(x = Actual.price, y = Discount.price))+
+  geom_point(size = 1.3)+
+  geom_smooth(method = "lm", se = TRUE, color = "red", linewidth = 0.7)+
+  labs(x = 'Actual Price',
+       y = "Discount Price",
+       title = "Actual vs Discount Price")+
+  theme_classic()
+```
+
+The points are more dense towards the origin, resulting in a heteroscadasticity. Lets make a small change to the scale of axes.
+
+```{r}
+ggplot(data = data, aes(x = Actual.price, y = Discount.price))+
+  geom_point(size = 1.3)+
+  geom_smooth(method = "lm", se = TRUE, color = "red", linewidth = 0.7)+
+  scale_x_log10()+
+  scale_y_log10()+
+  labs(x = 'Actual Price',
+       y = "Discount Price",
+       title = "Actual vs Discount Price")+
+  theme_classic()
+```
+
+This clearly shows the strong correlation between Actual and Discount prices, in the log-log scale. So they are actually related proportionally.
+
+Now lets have a look at some other plots.
+
+```{r}
+ggplot(data, aes(x = Rating))+
+  geom_histogram(bins = 30,
+                 color = 'black',
+                 fill='purple',
+                 alpha=0.8)+
+  scale_x_log10()+
+  labs(x = 'Rating',
+       y='Count',
+       title = 'Histogram of Ratings')+
+  theme_minimal()
+```
+
+```{r}
+ggplot(data, aes(x = Reviews))+
+  geom_histogram(bins = 30,
+                 color = 'black',
+                 fill='orange',
+                 alpha=0.6)+
+  scale_x_log10()+
+  labs(x = 'Reviews',
+       y='Count',
+       title = 'Histogram of Reviews')+
+  theme_minimal()
+```
+
+Again, the plots for Reviews and Ratings looks similar. So they have a strong relation, proportionally.
+
+```{r}
+ggplot(data = data, aes(x = Rating, y = Reviews))+
+  geom_point()+
+  geom_smooth(method = "lm", se = TRUE, color = "red", linewidth = 0.5)+
+  scale_x_log10()+
+  scale_y_log10()+
+  labs(x = 'Rating',
+       y = 'Reviews',
+       title = "Rating vs Reviews")+
+  theme_minimal()
+```
+
+This is evident from their scatter plots (on log-log scale).
+
+```{r}
+ggplot(subset(data, RAM..GB. >= 1 & RAM..GB. <= 20), aes(x = RAM..GB.))+
+  geom_histogram(bins = 40,
+                 color = 'black',
+                 fill='purple',
+                 alpha=0.8)+
+  scale_x_log10()+
+  labs(x = 'RAM (GB)',
+       y='Count',
+       title = 'Histogram of RAM')+
+  theme_minimal()
+```
+```{r}
+ggplot(data, aes(x = Storage..GB.))+
+  geom_histogram(bins = 40,
+                 color = 'black',
+                 fill='yellow',
+                 alpha=0.8)+
+  labs(x = 'Storage (GB)',
+       y='Count',
+       title = 'Histogram of Storage')+
+  theme_minimal()
+```
+
+```{r}
+ggplot(data, aes(x = Display.Size..inch.))+
+  geom_histogram(bins = 40,
+                 color = 'black',
+                 fill='green',
+                 alpha=0.8)+
+  labs(x = 'Display Size (inch)',
+       y='Count',
+       title = 'Histogram of Display Size')+
+  theme_minimal()
+```
+
+The last three graphs are not that interesting. We can have a closer look at the types of values taken by each column in data.
+
+```{r}
+for (col in colnames(data)) {
+  print(paste(col, length(unique(data[[col]])), sep = " -> "))
+}
+```
+
+As expected, the values in Stars, RAM and Storage seems to be discrete. So we can have graphs expecially made for them, like the bar plot.
+
+```{r}
+ggplot(data, aes(x = Stars))+
+  geom_bar(fill='blue', color = 'black', alpha = 0.7)+
+  xlim(3.3, 5.1)+
+  xlab(unique(data$Stars))+
+  labs(x = 'Stars',
+       y = 'Count',
+       title = 'Bar plot for Stars')+
+  theme_get()
+```
+
+This is our typical normal-like plot. This was expected, as very few people tend to rate things extremely low and extremely high, while many would give an average rating to an item.
+
+```{r}
+ggplot(data, aes(x = RAM..GB.))+
+  geom_bar(fill = 'green', color = 'black', alpha = 0.7)+
+  scale_x_log10()+
+  labs(x = 'RAM (GB)',
+       y = 'Count',
+       title = "Bar plot for RAM")+
+  theme_get()
+```
+
+This just shows the number of mobiles bought with different RAMs. Clearly, mobiles with around 10 GB RAM is manufactured most often. But, which mobile has more than 10000 GB RAM ?
+
+```{r}
+unique(data$RAM..GB.)
+kable(subset(data, RAM..GB. == 46875))
+```
+
+This seems to be a mistake here. No phone can have a RAM of 46875 GBs, at least as of today. Also, there are only two entries for this. Lets remove it and try again.
+
+
+```{r}
+unique(data$RAM..GB.)
+ggplot(subset(data, RAM..GB. != 46875), aes(x = RAM..GB.))+
+  geom_bar(fill = 'green', color = 'black', alpha = 0.7)+
+  scale_x_log10()+
+  labs(x = 'RAM (GB)',
+       y = 'Count',
+       title = "Bar plot for RAM")+
+  theme_get()
+```
+
+This seems to be a reasonable graph. Again, it shows that most phones are manufactored with around 8 GB RAM.
+
+Lastly, we have the storage.
+
+```{r}
+ggplot(data, aes(x = Storage..GB.))+
+  geom_bar(color = 'black', fill = 'yellow', alpha = 0.7)+
+  scale_x_log10()+
+  labs(x = 'Storage (GB)',
+       y = 'Count',
+       title = 'Bar plot of Storage')+
+  theme_get()
+```
+
+```{r}
+unique(data$Storage..GB.)
+```
+
+This is the higher end of storage category.
+
+```{r}
+ggplot(subset(data, Storage..GB. > 63 & Storage..GB. < 513), aes(x = Storage..GB.))+
+  geom_bar(color = 'black', fill = 'yellow', alpha = 0.8)+
+  scale_x_log10()+
+  labs(x = 'Storage (GB)',
+      y = 'Count',
+      title = 'Bar plot of Storage')+
+  theme_get()
+```
+
+We can have more plots here, like one between the Actual Price (numerical) and RAM (categorical).
+Lets have a bird's eye view first, with the help of box plots.
+
+```{r}
+ggplot((subset(data, RAM..GB. != 46875))) +
+  geom_boxplot(aes(y = Actual.price, group = RAM..GB.), outliers = F, color = 'black', fill = 'grey') +
+  scale_x_log10()+
+  labs(title = "Box Plot of RAM by Price", x = "RAM (GB)", y = "Actual Price") +
+  theme_minimal()
+```
+
+Now, we can look further with jitter plot.
+
+```{r}
+ggplot(subset(data, RAM..GB. != 46875), aes(x = RAM..GB., y = Actual.price)) +
+  geom_jitter(width = 0.2, size = 1, alpha = 0.7) +
+  labs(title = "Strip Plot (Jitter Plot) of Price by RAM", x = "RAM (GB)", y = "Actual Price") +
+  theme_grey()
+```
+
+This shows that devices tend to get higher in price with more RAM, along with the fact that the number of such devices manufactured get reduced. But again here, which device has 32 GB RAM and still so cheap (the rightmost plot in both cases above) ?
+
+```{r}
+kable(subset(data, RAM..GB. >= 30))
+```
+
+We know that the last two mobiles above have errors in them, as evident with their heavily high RAM power. Also, with the first two mobiles, on searching through the internet, we find that they actually have 4MB RAM, and 32 GB storage. So it is an error in the data entry.
+
+Nex, we look at a more interesting graph, one between RAM and Storage. Both are Categorical values.
+
+```{r}
+contingency_table <- subset(data, RAM..GB. <= 30) %>%
+  count(RAM..GB., Storage..GB.)
+
+ggplot(contingency_table, aes(x = RAM..GB., y = Storage..GB., fill = n)) +
+  geom_tile() +
+  scale_fill_gradient(low = "white", high = "blue") +
+  labs(title = "Heatmap of Two RAM and Storage", x = "RAM (GB)", y = "Storage (GB)", fill = "Count") +
+  theme_minimal()
+```
+
+Just a bit more extra, we create a bubble plot too.
+
+```{r}
+bubble_data <- subset(data, RAM..GB. <= 30) %>%
+  count(RAM..GB., Storage..GB.)
+
+# Create a bubble plot
+ggplot(bubble_data, aes(x = RAM..GB., y = Storage..GB., size = n, color = 'pink')) +
+  geom_point(alpha = 0.6) +
+  labs(title = "Bubble Plot of RAM and Storage", x = "RAM (GB)", y = "Stogare (GB)", size = "Count") +
+  theme_minimal()
+```
+
+Enough with the graphs, now we move forward with some mathematical analysis.
+
+# Statistical Analysis
+
+Now, we will have some statistical tests involved on different columns of data, and even across them.
+
+First, lets again go through the columns of data.
+
+```{r, echo = FALSE}
+kable(head(data, 6))
+```
+
+```{r}
+library(matlib)
+```
+
+First, we check the initial assumption, that the actual price of a mobile is statistically significant to its discounted price. This assumption was made from their scatter plot.
+
+To do so, there are actually in-built in functions to check the statistical significance of one variable in the prediction of another.
+
+```{r}
+modl <- lm(Discount.price ~ Actual.price, data = data)
+modl
+```
+
+This gives the intercept and slope of the best fit line of Discount Price vs Actual Price.
+
+
+$$Discount.price = \beta_0 + \beta_1Actual.price + \epsilon$$
+
+Here, we got the OLS (ordinary least squares) estimate of $$\beta_0 = -15.7243,\text{ }\beta_1 = 0.7932$$
+
+We can even verify it.
+
+```{r}
+ggplot(data = data, aes(x = Actual.price, y = Discount.price))+
+  geom_point(color = 'blue', size = 2)+
+  geom_abline(intercept = -15.7243, slope = 0.7932, color = 'red', linetype = 'dashed', linewidth = 1)+
+  labs(title = "Discount vs Actual prices",
+       x = "Actual Price",
+       y = "Discount Price")+
+  theme_minimal()
+```
+
+Also, we can get magnitudes of other statistics, which can then be used to determine the statistical significance of a variable (intercept, or Actual Price) in the determination of Discount Price.
+
+```{r}
+summary(modl)
+```
+
+This gives us an elaborate description of $\beta_0$ and $\beta_1$.
+
+Note that for the column Pr(>|t|), the value for Intercept is 0.936 > 0.05, while that for Actual.price is clearly < 0.05. This tells us that $\beta_0$ is not statistically significant in the determination of Discount price, while $\beta_1$ is. This is being stated against the p-value of 95%.
+
+Before we move on, it would be better to explain how we arrived at these statements by the values stated above.
+
+Let's start from basics.
+
+Suppose we have a set of values and a target value, where we want to determine the relation between them. For this, we want to fit a linear regression on the target variable against other variables.
+
+
+```{=tex}
+\begin{align*}
+X &= \text{Matrix with n rows and (p-1) columns}\\
+y &= \text{Target vector with n rows}
+\end{align*}
+```
+
+Here, we also insert the first column of X as all ones. This makes X having p columns.
+
+Now suppose we want to find the parameters $\beta = (\beta_1, \dots, \beta_p)^T$, such that $$\hat{y} = X\beta$$ is a "good" approximation for y.
+
+This means we want $$y = X\beta + \epsilon$$
+where $\epsilon$ have values as small in magnitude as possible, or $|\epsilon|^2$ is minimum.
+
+For this, we can derive that the statistical significance of variables $\beta_i$ for $i\in \{1,\dots,p\}$ in the determination of target variable y can be found by the t-value: $$t_{obs} = \frac{\beta}{s * \sqrt(diagonal((X^TX)^-1)}$$
+
+where $$s = \frac{(y - X\beta)^T(y - X\beta)}{n-p}$$
+
+These t-values tells us what is the probability of finding a t-value which is at least as small as $|t_{obs}|$, assuming the fact that the corresponding variable is not statistically significant for determination of target variable y.
+
+We can do the necessary calculations to confirm it.
+
+```{r}
+new_data <- subset(data, is.na(Actual.price) == FALSE)
+
+n <- nrow(new_data)
+p <- 2
+
+X <- matrix(NA, nrow = n, ncol = p)
+colnames(X) <- c("Intercept", "Actual.price")
+X[, "Intercept"] <- 1
+X[, "Actual.price"] <- new_data$Actual.price
+y <- new_data$Discount.price
+
+beta_hat <- solve(t(X) %*% X) %*% (t(X) %*% y)
+beta_hat
+
+RSS = t(y - X%*%beta_hat) %*% (y-X%*%beta_hat)
+s_sqr = RSS/(n-p)
+s = (sqrt(s_sqr))[1,1]
+
+Sx = solve(t(X)%*%X)
+std.error = s * sqrt(diag(Sx))
+t_obs = beta_hat/std.error
+t_obs
+
+p_values <- 2 * pt(abs(t_obs), df = n-p, lower.tail = FALSE)
+p_values
+```
+
+Note the similar values between above obtained magnitudes and the ones in `summary(modl)`. On comparing the p-value against the 95% type 1 error, we have the alpha-value of 0.05
+
+Since the p-value for intercept is larger than 0.05, it shows that intercept is not statistically significant in determination of Discount price.
+
+Hence, there is in-fact a relation of the form $$Discount.price \propto K \times Discount.price$$
+where $K \approx 0.7932331$.
+
+A simple glance at the plot above also suggests that the best line fit passes almost through the origin, making the intercept insignificant in determination of Discount price. This also tells that there is no base price against which the discount price of a mobile is calculated, and it only depends upon its actual price.
+
+Next, lets see the relation between both the prices in log-log scale, and then find the statistical significance of intercept and log(Actual.price)
+
+Since we already have the in-build functions, and we have established the math behind the calculations, we will directly use the in-built functions straightaway.
+
+```{r}
+new_data <- subset(data, is.na(Actual.price) == FALSE)
+new_data <- data[, c("Actual.price", "Discount.price")]
+new_data <- log(new_data)
+modl <- lm(Discount.price ~ Actual.price, data = new_data)
+
+summary(modl)
+```
+
+This shows us that in log-log scale, we get $$log(Discount.price) \approx -0.442410 + 1.019533 \times log(Actual.price)$$
+
+Also, since the p-values for both of them are extremely small (<2e-16), the intercept and slope both are of statistical significance. Note that since we are in the log-log scale here, it boils down to the proportionality relation that we derived before.
+
+
+Next, we will look at some prominent statistical tests, which, to be honest, should have been performed at the first stage. This is because these tests challenge the very assumptions itself, based upon which we made the two models above. The tests we will perform will be:
+
+1) Check for independence
+2) Homoscedasticity of residues
+3) Normality or residues
+
+Remember the $\epsilon$ we had used inilially ? There, while fitting the linear models, we assumed that
+
+$\epsilon_i$ ~ $N(0, \sigma_2) \text{ }\forall \text{ } i$
+
+Note that
+1) $\epsilon_i$'s are pairwise independent
+2) We assumed that it is normal
+3) The variance for each $\epsilon_i$ is the same (homoskedasticity)
+
+Hence, it becomes important to check these assumptions, even before fitting the linear models.
+
+### Check for Independence
+
+There are many statistical tests for this. Some are:
+
+1) Bartels Rank Test (aka. Bartlet’s Ratio Test) (1984)
+2) Mann-Kendall rank test of randomness (1945)
+3) Wald-Wolfowitz Runs Test for randomness. (1940)
+
+Here, our null hypothesis is that $\epsilon_1, \dots, \epsilon_n$ are all random.
+
+Lets run the Bartels Rank Test here.
+
+```{r}
+library(randtests)
+
+modl <- lm(Discount.price ~ Actual.price, data = data)
+
+bartels.rank.test(modl$residuals)
+```
+
+Rejecting the null hypothesis with p-value < 0.05, we can say that the residuals are in fact not random.
+
+Lets conduct the same test for the regression model in log-log scale.
+
+```{r}
+new_data <- data[, c("Actual.price", "Discount.price")]
+new_data <- log(new_data)
+
+modl <- lm(Discount.price ~ Actual.price, data = new_data)
+bartels.rank.test(modl$residuals)
+```
+
+Here again, the null hypothesis is rejected, resulting in the non-independent residuals.
+
+### Check for Homoskedasticity
+
+There are many statistical tests to check for Homoskedasticity. Some of them are:
+
+1) Breusch-Pagan Test
+2) Bartlett’s test
+3) Box’s M test for homoskedasticity
+
+Lets do a Breusch-Pegan test
+
+```{r}
+library(lmtest)
+
+modl <- lm(Discount.price ~ Actual.price, data = data)
+bptest(modl)
+```
+
+Here, we get p-value < 0.05. So it means that we have to reject the null hypothesis about the residues being homoscedastic (so they are heteorscedastic). Thus, it seems that our assumption for the model fitting was not satisfied here.
+
+Lets try it onto the log-log scale.
+
+```{r}
+new_data <- data[, c("Actual.price", "Discount.price")]
+new_data <- log(new_data)
+
+modl <- lm(Discount.price ~ Actual.price, data = new_data)
+bptest(modl)
+```
+
+Here, note that p-value = 0.01307 > 0.05. Thus, we fail to reject the null hypothesis, and state that the residues are in fact statistically homoscedastic. It means on of the assumptions is followed by this model.
+
+This fact about homoscedasticity is even a bit evident (not completely) from the plots too. Notice that in the simple plot, the points tend to make an outward funnel, suggesting a heteroscedasticity. Whereas in the log-log scale model, the points do not much diverge from the regression line anywhere, and seems to be assymptotically bounded about the line, suggesting a strong homoscedasticity. Of course, these are just visual assumptions, and a proper statistical evidence is needed (just as we did above) to make a valid and full-proof statement.
+
+Next, we check for the normality of residues.
+
+Since the first model failed to perform one of the assumptions for fitting the linear regression, ideally we should discard that model and check for normality only in the second case. But still, lets conduct the test form both cases.
+
+### Check for normality
+
+Again, there are many statistical tests to check for the normality condition. A few of them are:
+
+1) Kolmogorov-Smirnov test
+2) Anderson-Darling test
+3) Shapiro-Wilk test
+
+Lets run the Kolmogorov-Smirnov test on the first model.
+
+```{r}
+library(stats)
+
+modl <- lm(Discount.price ~ Actual.price, data = data)
+sum <- summary(modl)
+ks.test(sum$residuals, pnorm)
+```
+
+This clearly rejects the null hypothesis for normality, indicating that the residuals are not normal.
+
+Doing the same in log-log scale.
+
+```{r}
+new_data <- data[, c("Actual.price", "Discount.price")]
+new_data <- log(new_data)
+
+modl <- lm(Discount.price ~ Actual.price, data = new_data)
+sum <- summary(modl)
+ks.test(sum$residuals, pnorm)
+```
+
+This again rejects the null hypothesis, again suggesting that the residuals are not normal, even in the log-log scale.
+
+Lets have the other two tests as well.
+
+```{r}
+library(nortest)
+
+modl <- lm(Discount.price ~ Actual.price, data = data)
+sum <- summary(modl)
+
+ad.test(sum$residuals)
+```
+
+```{r}
+new_data <- data[, c("Actual.price", "Discount.price")]
+new_data <- log(new_data)
+
+modl <- lm(Discount.price ~ Actual.price, data = new_data)
+sum <- summary(modl)
+
+ad.test(sum$residuals)
+```
+
+```{r}
+modl <- lm(Discount.price ~ Actual.price, data = data)
+sum <- summary(modl)
+
+shapiro.test(sum$residuals)
+```
+
+```{r}
+new_data <- data[, c("Actual.price", "Discount.price")]
+new_data <- log(new_data)
+
+modl <- lm(Discount.price ~ Actual.price, data = new_data)
+sum <- summary(modl)
+
+shapiro.test(sum$residuals)
+```
+
+Thus, all the tests reject the null hypothesis, indicating that the residuals are not normal.
+
+This means that we have to reject both of our models since none of them seem to satisfy the normality test.
+
+## End Note
+
+This was a long journey, from the analysis of data through plots and graphs, to fitting models to the variables of data and conducting statistical tests on various assumptions of the models. We in no way claim that these are all the tests we can conduct. In fact, there are so many number of model fittings and statistical tests that could be conducted here, and we did only a small part of it.
+
+We could have a more deeper analysis here. But since the project has already been too long, we would stop here. Till now, I just want to add that, there are 100s of statistical tests out there, and what we did was only a very tiny fraction of it. All of this was invented many decades ago (some of them a few years ago), when we were technologically not that powerful. Now, we have abundance supply of data in most of the fields, and also many Machine Learning and Deep Learning models, that perform much better than the statistical tests. But, we should also not forget that all of this originated form the ideas of statistics compounded with the technological advancements in Computer Science. Even today, there are places where people don't trust on ML and AI models, mostly because of their inexplainability or expensive data, and rather rely upon these statistical tests.
